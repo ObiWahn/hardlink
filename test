@@ -10,4 +10,7 @@ cp -r  "$test_dir" 'test'
 
 ../hardlink.py 'test' "$@"
 
+echo "here comes the diff"
 diff -r 'test' "$test_dir"
+echo "end of diff diff"
+

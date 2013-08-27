@@ -66,7 +66,8 @@ def hardlink(directories):
 def check_file(filename):
     #is the file excluded
     if file_is_excluded(filename):
-        print("file excluded: %s" % filename)
+        if conf['interactive']:
+            print("file excluded: %s" % filename)
         return
 
 

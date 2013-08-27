@@ -1,0 +1,13 @@
+#!/bin/bash
+
+test_dir="test-$1"
+shift
+
+cd hardlink-test-daten || exit 1
+
+rm -fr 'test'
+cp -r  "$test_dir" 'test'
+
+../hardlink.py 'test' "$@"
+
+diff -r 'test' "$test_dir"

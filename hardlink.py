@@ -146,9 +146,9 @@ def link_files(file_to_link_to, filename):
 
     return #end of link_files
 
-def dir_is_excluded(dirpath,dirname,interactive):
-    if (os.path.basename(dirname).lower() in exclude_dirs):
-        if interactive:
+def dir_is_excluded(dirpath,dirname):
+    if (os.path.basename(dirname).lower() in conf['exclude_dirs']):
+        if conf['interactive']:
             print("ignoring directory: %s/%s" % (os.path.abspath(dirpath),dirname))
         return True
     return False
@@ -214,7 +214,6 @@ def convert_size(size):
     p = math.pow(1024,i)
     s = round(size/p,2)
     if (s > 0):
-        print(str(i))
         return '%s %s' % (s,size_name[i])
     else:
         return '0B'

@@ -6,7 +6,10 @@ shift
 cd hardlink-test-daten || exit 1
 
 rm -fr 'test'
+echo -n 'copy test files ...'
 cp -r  "$test_dir" 'test'
+echo 'done'
+echo
 
 ../hardlink.py 'test' "$@"
 

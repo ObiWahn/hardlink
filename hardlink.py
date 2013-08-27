@@ -1,47 +1,63 @@
 #!/usr/bin/python
 
-
 import sys
 import os
 import hashlib
 import argparse
 import pprint
+import re
 
 file_by_inode = {}
 inode_by_hash  = {}
 
-exclude_dirs = []
-
 conf = {}
-conf[dr]
-
+conf['white_list_res'] = []
+conf['black_list_res'] = []
+conf['_exclude_dirs_default'] = (".git", ".hg", "drafts", "Entw&APw-rfe")
+conf['interactive'] = False
+conf['dryrun'] = False
+conf['_read_compare_size'] = 4 * 1024
+conf['_read_hash_size'] = 2 * 1024
+conf['_num_links']=0
+conf['_disk_saved']=0
 
 def main():
-    dryrun=True
-    interactive=True
-    parse_arguments()
+    conf['interactive'] = False
+
+    #TODO crude
     directories = sys.argv[1:]
-    hardlink(directories, dryrun, interactive)
+
+    parse_arguments()
+    hardlink(directories)
     return 0
 
 def parse_arguments():
-    pass
+    #TODO - parseing is missing
+    conf['dryrun']=False
+    conf['white_list_res'] = []
+    conf['black_list_res'] = []
 
-def hardlink(directories,dryrun=True,interactive=False):
-    exclude_dirs_default = (".git",".hg","drafts","Entw&APw-rfe")
-    global exclude_dirs
-    exclude_dirs += [ x.lower() for x in exclude_dirs_default ]
+    #compile settings
+    conf['exclude_dirs'].extend( [ x.lower() for x in conf['_exclude_dirs_default']] )
+    conf['_compiled_white_list_res'] = [ re.compile(reg) for reg in conf['white_list_res'] ]
+    conf['_compiled_black_list_res'] = [ re.compile(reg) for reg in conf['black_list_res'] ]
+
+def hardlink(directories):
     for root in directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
-                if dir_is_excluded(dirpath,d,interactive):
+                if dir_is_excluded(dirpath,d):
                     dirnames.remove(d)
 
             for f in filenames:
                 filename=os.path.join(dirpath, f)
-                check_file(filename, dryrun, interactive)
+                check_file(filename)
 
-def check_file(filename, dryrun, interactive):
+    if conf['interactive']:
+        print("   links created: %s" % conf['_num_links'])
+        print("disk space saved: %s" % conf['_disk_saved'])
+
+def check_file(filename):
     #is the file excluded
     if file_is_excluded(filename):
         return
@@ -55,7 +71,7 @@ def check_file(filename, dryrun, interactive):
 
     # file is not linked - is there some other file with the same content
     with open(filename,'rb') as file_handle:
-        content_hash=hashlib.md5(file_handle.read()).hexdigest()
+        content_hash=hashlib.md5(file_handle.read(conf['_read_hash_size'])).hexdigest()
 
     if content_hash in inode_by_hash:
         # there is some other file
@@ -63,7 +79,9 @@ def check_file(filename, dryrun, interactive):
 
         if inode_key[0] == other_inode_key[0]:
             # the other file is one the same drive
-            link_files(file_by_inode[other_inode_key], filename, dryrun, interactive) #do it
+            file_to_link_to=file_by_inode[other_inode_key]
+            if not files_are_not_allowed_to_link(file_to_link_to, filename):
+                link_files(file_to_link_to, filename) #do it
             return
 
     #we do not have a filename for the inode
@@ -72,24 +90,26 @@ def check_file(filename, dryrun, interactive):
     inode_by_hash[content_hash]=inode_key
 
 
-def link_files(file_to_link_to, filename, dryrun, interactive):
-    if file_is_excluded(file_to_link_to,filename):
-        return
-
+def link_files(file_to_link_to, filename):
     if interactive and not dryrun:
         print("linking: %s <- %s" % (file_to_link_to,filename))
 
-    if dryrun:
+    if interactive and dryrun:
         print("dryrun: %s <- %s" % (file_to_link_to,filename))
+        conf['_num_links'] += 1
+        conf['_disk_saved'] += os.stat(filename)
         return
 
     temp_name=filename + "___link_it___"
+
+    #move original out of the way
     try:
         os.rename(filename,temp_name)
     except:
         print("failed to rename %s to %s" % (filename,temp_name))
         return
 
+    #link to other file
     try:
         os.link(file_to_link_to,filename)
     except:
@@ -103,11 +123,16 @@ def link_files(file_to_link_to, filename, dryrun, interactive):
             raise e
         return
 
+    #remove original file
     try:
         os.unlink(temp_name)
-    except:
+    except Exception as e:
         print("failed to unlink %s" % temp_name)
+        raise e
 
+    if dryrun:
+        conf['_num_links'] += 1
+        conf['_disk_saved'] += os.stat(filename)
 
 def dir_is_excluded(dirpath,dirname,interactive):
     if (os.path.basename(dirname).lower() in exclude_dirs):
@@ -116,19 +141,71 @@ def dir_is_excluded(dirpath,dirname,interactive):
         return True
     return False
 
-
-def file_is_excluded(filename,other_file=None,date=False):
-    if not other_file:
+def file_is_excluded(filename):
+    if not file_to_link_to:
         if os.path.islink(filename):
             return True
-        #if matches some exclude re
-            #return False
-    else:
-        if False:
-            #extra checks like same id, timestamps, etc here
+
+    if conf['_compiled_black_list_res']:
+        for reg in conf['_compiles_black_list_res']:
+            if reg.scan(filename):
+                return True
+
+    if conf['_compiled_white_list_res']:
+        white_re_match=False
+        for reg in conf['_compiles_white_list_res']:
+            if reg.scan(filename):
+                white_re_match=True
+                break
+        if not white_re_match:
             return True
 
     return False
+
+def files_are_not_allowed_to_link(file_to_link_to, filename):
+    file1=file_to_link_to
+    file2=filename
+
+    stat_1=os.stat(file1)
+    stat_2=os.stat(file2)
+
+    if conf['user']:
+        if stat_1.st_uid != stat_2.st_uid
+            return True
+
+    if conf['group']:
+        if stat_1.st_gid != stat_2.st_gid
+            return True
+
+    if conf['ctime']:
+        if stat_1.st_ctime != stat_2.st_ctime
+            return True
+
+    # compare contents chunk by chunk
+    # with foo,bar does not work in 2.6.6
+    with open(file_to_link_to, 'rb') as f1
+        with open(filename, 'rb') as f2:
+            while True:
+                b1 = f1.read(conf['_read_compare_size'])
+                b2 = f2.read(conf['_read_compare_size'])
+                if b1 != b2:
+                    return True
+                if not b1:
+                    break
+
+    return False
+
+def convertSize(size):
+    if size == 0:
+        return '0B'
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.floor(math.log(size,1024)))
+    p = math.pow(1024,i)
+    s = round(size/p,2)
+    if (s > 0):
+        return '%s %s' % (s,size_name[i])
+    else:
+        return '0B'
 
 if __name__ == '__main__':
     sys.exit(main())

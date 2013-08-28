@@ -5,50 +5,110 @@ import os
 import hashlib      #check_file
 import re           #file_is_excluded
 import math         #convert_size
-import argparse
 
-#import pprint
+import pprint
 
 file_by_inode = {}
 inode_by_hash  = {}
 
+
+
 conf = {}
-conf['white_list_res'] = []
-conf['black_list_res'] = []
+
+conf['directories']        = []
+
+conf['white_list_res']     = []
+conf['black_list_res']     = []
+conf['exclude_dirs']       = []
 conf['_exclude_dirs_default'] = (".git", ".hg", "drafts", "Entw&APw-rfe")
-conf['interactive'] = False
-conf['dryrun'] = False
-conf['user'] = False
-conf['group'] = False
-conf['ctime'] = False
+
+conf['interactive']        = False
+conf['dryrun']             = False
+
+conf['user']               = False
+conf['group']              = False
+conf['mode']               = False
+conf['ctime']              = False
+
 conf['_read_compare_size'] = 4 * 1024
-conf['_read_hash_size'] = 2 * 1024
-conf['_num_links']=0
-conf['_disk_saved']=0
+conf['_read_hash_size']    = 2 * 1024
+conf['_num_links']         = 0
+conf['_disk_saved']        = 0
+
+
 
 def main():
     conf['interactive'] = True
-
-    #TODO crude
-    directories = sys.argv[1:]
-
-    parse_arguments()
-    hardlink(directories)
+    args=parse_arguments()
+    if args.directory:
+        hardlink(args.directory)
+    else:
+        print("No directory given")
     return 0
 
 def parse_arguments():
-    #TODO - parseing is missing
-    conf['dryrun']=False
-    conf['white_list_res'] = [r"/\d+\.$"]
-    conf['black_list_res'] = []
-    conf['exclude_dirs'] = []
+    import argparse
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument("directory", nargs="*",
+                        help="list of directories",
+                        metavar="<dir>"
+                       )
+    parser.add_argument("-d","--dryrun", help="show what would be done", action="store_true")
+
+    parser.add_argument("-u", "--user", help="ensure files have the same user", action="store_true")
+    parser.add_argument("-g", "--group", help="ensure files have the same group", action="store_true")
+    parser.add_argument("-m", "--mode", help="ensure files have the same mode", action="store_true")
+    parser.add_argument("-t", "--time", help="ensure files have the same time", action="store_true")
+
+    parser.add_argument("--whitelist",
+                        help="if given files are required to match one of the REs",
+                        metavar="<whitelist re>",
+                        nargs="*"
+                       )
+    parser.add_argument("--blacklist",
+                        help="if given files are not allowed to match any of the REs",
+                        metavar="<blacklist re>",
+                        nargs="*"
+                       )
+
+    parser.add_argument("--exclude-dir",
+                        help="exclude directories with given names (not full pathes - eg: .git)",
+                        metavar="<dir>",
+                        nargs="*"
+                       )
+
+
+    args=parser.parse_args()
+
+    if args.dryrun:
+        conf['dryrun']=args.dryrun
+
+    if args.user:
+        conf['user']=args.user
+    if args.group:
+        conf['group']=args.group
+    if args.mode:
+        conf['mode']=args.mode
+    if args.time:
+        conf['time']=args.time
+
+    if args.whitelist:
+        conf['white_list_res'].extend(args.whitelist)
+    if args.blacklist:
+        conf['black_list_res'].extend(args.blacklist)
+    if args.exclude_dir:
+        conf['exclude_dirs'].extend(exclude_dir)
+
+    return args
+
+
+def hardlink(directories):
     #compile settings
     conf['exclude_dirs'].extend( [ x.lower() for x in conf['_exclude_dirs_default']] )
     conf['_compiled_white_list_res'] = [ re.compile(reg) for reg in conf['white_list_res'] ]
     conf['_compiled_black_list_res'] = [ re.compile(reg) for reg in conf['black_list_res'] ]
 
-def hardlink(directories):
     for root in directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
@@ -186,6 +246,10 @@ def files_are_not_allowed_to_link(file_to_link_to, filename):
 
     if conf['group']:
         if stat_1.st_gid != stat_2.st_gid:
+            return True
+
+    if conf['mode']:
+        if stat_1.st_mode != stat_2.st_mode:
             return True
 
     if conf['ctime']:

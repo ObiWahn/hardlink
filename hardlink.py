@@ -11,42 +11,47 @@ import pprint
 file_by_inode = {}
 inode_by_hash  = {}
 
+class hardConf:
+    '''my great documenmtation about hardConf
 
+    here we go...
+    '''
 
-conf = {}
+    #: my documentation string about directories
+    directories        = []
 
-conf['directories']        = []
+    white_list_res     = []
+    black_list_res     = []
+    exclude_dirs       = []
+    _exclude_dirs_default = (".git", ".hg", "drafts", "Entw&APw-rfe")
 
-conf['white_list_res']     = []
-conf['black_list_res']     = []
-conf['exclude_dirs']       = []
-conf['_exclude_dirs_default'] = (".git", ".hg", "drafts", "Entw&APw-rfe")
+    interactive        = False
+    dryrun             = False
 
-conf['interactive']        = False
-conf['dryrun']             = False
+    user               = False
+    group              = False
+    mode               = False
+    ctime              = False
 
-conf['user']               = False
-conf['group']              = False
-conf['mode']               = False
-conf['ctime']              = False
+    _read_compare_size = 4 * 1024
+    _read_hash_size    = 2 * 1024
+    _num_links         = 0
+    _disk_saved        = 0
 
-conf['_read_compare_size'] = 4 * 1024
-conf['_read_hash_size']    = 2 * 1024
-conf['_num_links']         = 0
-conf['_disk_saved']        = 0
-
-
+conf=hardConf()
 
 def main():
-    conf['interactive'] = True
-    args=parse_arguments()
-    if args.directory:
-        hardlink(args.directory)
+    conf.interactive = True
+    parse_arguments()
+    if conf.directories:
+        hardlink()
     else:
         print("No directory given")
     return 0
 
 def parse_arguments():
+    """ This function parses the arguments and manipulates the conf object
+    """
     import argparse
     parser = argparse.ArgumentParser()
 
@@ -73,7 +78,7 @@ def parse_arguments():
                        )
 
     parser.add_argument("--exclude-dir",
-                        help="exclude directories with given names (not full pathes - eg: .git)",
+                        help="exclude directories with given names (not full paths - eg: .git)",
                         metavar="<dir>",
                         nargs="*"
                        )
@@ -81,35 +86,37 @@ def parse_arguments():
 
     args=parser.parse_args()
 
+    if args.directory:
+        conf.directories.extend(args.directory)
+
     if args.dryrun:
-        conf['dryrun']=args.dryrun
+        conf.dryrun=args.dryrun
 
     if args.user:
-        conf['user']=args.user
+        conf.user=args.user
     if args.group:
-        conf['group']=args.group
+        conf.group=args.group
     if args.mode:
-        conf['mode']=args.mode
+        conf.mode=args.mode
     if args.time:
-        conf['time']=args.time
+        conf.time=args.time
 
     if args.whitelist:
-        conf['white_list_res'].extend(args.whitelist)
+        conf.white_list_res.extend(args.whitelist)
     if args.blacklist:
-        conf['black_list_res'].extend(args.blacklist)
+        conf.black_list_res.extend(args.blacklist)
     if args.exclude_dir:
-        conf['exclude_dirs'].extend(exclude_dir)
-
-    return args
+        conf.exclude_dirs.extend(exclude_dir)
 
 
-def hardlink(directories):
+
+def hardlink():
     #compile settings
-    conf['exclude_dirs'].extend( [ x.lower() for x in conf['_exclude_dirs_default']] )
-    conf['_compiled_white_list_res'] = [ re.compile(reg) for reg in conf['white_list_res'] ]
-    conf['_compiled_black_list_res'] = [ re.compile(reg) for reg in conf['black_list_res'] ]
+    conf.exclude_dirs.extend( [ x.lower() for x in conf._exclude_dirs_default] )
+    conf._compiled_white_list_res = [ re.compile(reg) for reg in conf.white_list_res ]
+    conf._compiled_black_list_res = [ re.compile(reg) for reg in conf.black_list_res ]
 
-    for root in directories:
+    for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
                 if dir_is_excluded(dirpath,d):
@@ -119,14 +126,14 @@ def hardlink(directories):
                 filename=os.path.join(dirpath, f)
                 check_file(filename)
 
-    if conf['interactive']:
-        print("   links created: %s" % conf['_num_links'])
-        print("disk space saved: %s" % str(convert_size(conf['_disk_saved'])))
+    if conf.interactive:
+        print("   links created: %s" % conf._num_links)
+        print("disk space saved: %s" % str(convert_size(conf._disk_saved)))
 
 def check_file(filename):
     #is the file excluded
     if file_is_excluded(filename):
-        if conf['interactive']:
+        if conf.interactive:
             print("file excluded: %s" % filename)
         return
 
@@ -140,7 +147,7 @@ def check_file(filename):
 
     # file is not linked - is there some other file with the same content
     with open(filename,'rb') as file_handle:
-        content_hash=hashlib.md5(file_handle.read(conf['_read_hash_size'])).hexdigest()
+        content_hash=hashlib.md5(file_handle.read(conf._read_hash_size)).hexdigest()
 
     if content_hash in inode_by_hash:
         # there is some other file
@@ -160,16 +167,16 @@ def check_file(filename):
 
 
 def link_files(file_to_link_to, filename):
-    if conf['interactive'] and not conf['dryrun']:
+    if conf.interactive and not conf.dryrun:
         print("linking: %s <- %s" % (file_to_link_to,filename))
 
-    if conf['interactive'] and conf['dryrun']:
+    if conf.interactive and conf.dryrun:
         print("dryrun: %s <- %s" % (file_to_link_to,filename))
-        conf['_num_links'] += 1
-        conf['_disk_saved'] += os.stat(filename).st_size
+        conf._num_links += 1
+        conf._disk_saved += os.stat(filename).st_size
 
     #DO NOT MESS WITH THIS
-    if conf['dryrun']:
+    if conf.dryrun:
         return
 
     #move original out of the way
@@ -201,14 +208,14 @@ def link_files(file_to_link_to, filename):
         print("failed to unlink %s" % temp_name)
         raise e
 
-    conf['_num_links'] += 1
-    conf['_disk_saved'] += os.stat(filename).st_size
+    conf._num_links += 1
+    conf._disk_saved += os.stat(filename).st_size
 
     return #end of link_files
 
 def dir_is_excluded(dirpath,dirname):
-    if (os.path.basename(dirname).lower() in conf['exclude_dirs']):
-        if conf['interactive']:
+    if (os.path.basename(dirname).lower() in conf.exclude_dirs):
+        if conf.interactive:
             print("ignoring directory: %s/%s" % (os.path.abspath(dirpath),dirname))
         return True
     return False
@@ -217,14 +224,14 @@ def file_is_excluded(filename):
     if os.path.islink(filename):
             return True
 
-    if conf['_compiled_black_list_res']:
-        for reg in conf['_compiled_black_list_res']:
+    if conf._compiled_black_list_res:
+        for reg in conf._compiled_black_list_res:
             if reg.search(filename):
                 return True
 
-    if conf['_compiled_white_list_res']:
+    if conf._compiled_white_list_res:
         white_re_match=False
-        for reg in conf['_compiled_white_list_res']:
+        for reg in conf._compiled_white_list_res:
             if reg.search(filename):
                 white_re_match=True
                 break
@@ -240,19 +247,19 @@ def files_are_not_allowed_to_link(file_to_link_to, filename):
     stat_1=os.stat(file1)
     stat_2=os.stat(file2)
 
-    if conf['user']:
+    if conf.user:
         if stat_1.st_uid != stat_2.st_uid:
             return True
 
-    if conf['group']:
+    if conf.group:
         if stat_1.st_gid != stat_2.st_gid:
             return True
 
-    if conf['mode']:
+    if conf.mode:
         if stat_1.st_mode != stat_2.st_mode:
             return True
 
-    if conf['ctime']:
+    if conf.ctime:
         if stat_1.st_ctime != stat_2.st_ctime:
             return True
 
@@ -261,8 +268,8 @@ def files_are_not_allowed_to_link(file_to_link_to, filename):
     with open(file_to_link_to, 'rb') as f1:
         with open(filename, 'rb') as f2:
             while True:
-                b1 = f1.read(conf['_read_compare_size'])
-                b2 = f2.read(conf['_read_compare_size'])
+                b1 = f1.read(conf._read_compare_size)
+                b2 = f2.read(conf._read_compare_size)
                 if b1 != b2:
                     return True
                 if not b1:

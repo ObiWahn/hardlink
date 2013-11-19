@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+
 # Copyright 2013 Jan Christoph Uhde <Jan@UhdeJC.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +22,12 @@
 #   https://github.com/ObiWahn/
 #
 
+
+#
+# How it works:
+#
+# For each file that is not a symbolic link a md5 hash is created.
+#
 
 
 import sys
@@ -139,6 +146,7 @@ def hardlink():
     conf._compiled_white_list_res = [ re.compile(reg) for reg in conf.white_list_res ]
     conf._compiled_black_list_res = [ re.compile(reg) for reg in conf.black_list_res ]
 
+    # walk directories
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
@@ -160,7 +168,6 @@ def check_file(filename):
             print("file excluded: %s" % filename)
         return
 
-
     stat_info = os.stat(filename)
     inode_key=(stat_info.st_dev,stat_info.st_ino)
 
@@ -179,7 +186,7 @@ def check_file(filename):
         if inode_key[0] == other_inode_key[0]:
             # the other file is one the same drive
             file_to_link_to=file_by_inode[other_inode_key]
-            if not files_are_not_allowed_to_link(file_to_link_to, filename):
+            if allowed_to_link(file_to_link_to, filename):
                 link_files(file_to_link_to, filename) #do it
             return
 
@@ -263,42 +270,48 @@ def file_is_excluded(filename):
 
     return False
 
-def files_are_not_allowed_to_link(file_to_link_to, filename):
+
+def allowed_to_link(file_to_link_to, filename):
     file1=file_to_link_to
     file2=filename
 
     stat_1=os.stat(file1)
     stat_2=os.stat(file2)
 
+    #sizes don't match
+    if stat_1.st_size != stat_2.st_size:
+        return False
+
     if conf.user:
         if stat_1.st_uid != stat_2.st_uid:
-            return True
+            return False
 
     if conf.group:
         if stat_1.st_gid != stat_2.st_gid:
-            return True
+            return False
 
     if conf.mode:
         if stat_1.st_mode != stat_2.st_mode:
-            return True
+            return False
 
     if conf.ctime:
         if stat_1.st_ctime != stat_2.st_ctime:
-            return True
+            return False
 
     # compare contents chunk by chunk
     # with foo,bar does not work in 2.6.6
+    # sizes are already compared so f2 can not be longer!
     with open(file_to_link_to, 'rb') as f1:
         with open(filename, 'rb') as f2:
             while True:
                 b1 = f1.read(conf._read_compare_size)
                 b2 = f2.read(conf._read_compare_size)
                 if b1 != b2:
-                    return True
+                    return False
                 if not b1:
                     break
 
-    return False #file is allowed to be linked
+    return True
 
 def convert_size(size):
     if size == 0:

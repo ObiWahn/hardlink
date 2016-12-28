@@ -68,18 +68,18 @@ class hardConf:
     _num_links         = 0
     _disk_saved        = 0
 
-conf=hardConf()
 
 def main():
+    conf=hardConf()
     conf.interactive = True
-    parse_arguments()
+    parse_arguments(conf)
     if conf.directories:
-        hardlink()
+        hardlink(conf)
     else:
         print("No directory given")
     return 0
 
-def parse_arguments():
+def parse_arguments(conf):
     """ This function parses the arguments and manipulates the conf object
     """
     import argparse
@@ -140,7 +140,7 @@ def parse_arguments():
 
 
 
-def hardlink():
+def hardlink(conf):
     #compile settings
     conf.exclude_dirs.extend( [ x.lower() for x in conf._exclude_dirs_default] )
     conf._compiled_white_list_res = [ re.compile(reg) for reg in conf.white_list_res ]
@@ -150,20 +150,23 @@ def hardlink():
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
-                if dir_is_excluded(dirpath,d):
+                if dir_is_excluded(conf, dirpath, d):
                     dirnames.remove(d)
 
             for f in filenames:
                 filename=os.path.join(dirpath, f)
-                check_file(filename)
+                check_file(conf, filename)
 
     if conf.interactive:
         print("   links created: %s" % conf._num_links)
         print("disk space saved: %s" % str(convert_size(conf._disk_saved)))
 
-def check_file(filename):
+def check_file(conf, filename):
     #is the file excluded
-    if file_is_excluded(filename):
+    if file_is_excluded( filename
+                       , conf._compiled_white_list_res
+                       , conf._compiled_black_list_res
+                       ):
         if conf.interactive:
             print("file excluded: %s" % filename)
         return
@@ -186,8 +189,15 @@ def check_file(filename):
         if inode_key[0] == other_inode_key[0]:
             # the other file is one the same drive
             file_to_link_to=file_by_inode[other_inode_key]
-            if allowed_to_link(file_to_link_to, filename):
-                link_files(file_to_link_to, filename) #do it
+            if allowed_to_link( file_to_link_to
+                              , filename
+                              , conf._read_compare_size
+                              , conf.user
+                              , conf.group
+                              , conf.mode
+                              , conf.ctime
+                              ):
+                link_files(conf, file_to_link_to, filename) #do it
             return
 
     #we do not have a filename for the inode
@@ -196,7 +206,7 @@ def check_file(filename):
     inode_by_hash[content_hash]=inode_key
 
 
-def link_files(file_to_link_to, filename):
+def link_files(conf, file_to_link_to, filename):
     if conf.interactive and not conf.dryrun:
         print("linking: %s <- %s" % (file_to_link_to,filename))
 
@@ -243,25 +253,28 @@ def link_files(file_to_link_to, filename):
 
     return #end of link_files
 
-def dir_is_excluded(dirpath,dirname):
+def dir_is_excluded(conf, dirpath, dirname):
     if (os.path.basename(dirname).lower() in conf.exclude_dirs):
         if conf.interactive:
             print("ignoring directory: %s/%s" % (os.path.abspath(dirpath),dirname))
         return True
     return False
 
-def file_is_excluded(filename):
+def file_is_excluded( filename
+                    , compiled_white_list_res
+                    , compiled_black_list_res
+                    ):
     if os.path.islink(filename):
             return True
 
-    if conf._compiled_black_list_res:
-        for reg in conf._compiled_black_list_res:
+    if compiled_black_list_res:
+        for reg in compiled_black_list_res:
             if reg.search(filename):
                 return True
 
-    if conf._compiled_white_list_res:
+    if compiled_white_list_res:
         white_re_match=False
-        for reg in conf._compiled_white_list_res:
+        for reg in compiled_white_list_res:
             if reg.search(filename):
                 white_re_match=True
                 break
@@ -271,7 +284,15 @@ def file_is_excluded(filename):
     return False
 
 
-def allowed_to_link(file_to_link_to, filename):
+def allowed_to_link( file_to_link_to
+                   , filename
+                   , read_compare_size = 4 * 1024
+                   , check_user = False
+                   , check_group = False
+                   , check_mode = False
+                   , check_ctime = False
+                   ):
+
     file1=file_to_link_to
     file2=filename
 
@@ -282,19 +303,19 @@ def allowed_to_link(file_to_link_to, filename):
     if stat_1.st_size != stat_2.st_size:
         return False
 
-    if conf.user:
+    if check_user:
         if stat_1.st_uid != stat_2.st_uid:
             return False
 
-    if conf.group:
+    if check_group:
         if stat_1.st_gid != stat_2.st_gid:
             return False
 
-    if conf.mode:
+    if check_mode:
         if stat_1.st_mode != stat_2.st_mode:
             return False
 
-    if conf.ctime:
+    if check_ctime:
         if stat_1.st_ctime != stat_2.st_ctime:
             return False
 
@@ -304,8 +325,8 @@ def allowed_to_link(file_to_link_to, filename):
     with open(file_to_link_to, 'rb') as f1:
         with open(filename, 'rb') as f2:
             while True:
-                b1 = f1.read(conf._read_compare_size)
-                b2 = f2.read(conf._read_compare_size)
+                b1 = f1.read(read_compare_size)
+                b2 = f2.read(read_compare_size)
                 if b1 != b2:
                     return False
                 if not b1:

@@ -150,18 +150,22 @@ def hardlink(conf):
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
-                if dir_is_excluded(conf, dirpath, d):
+                if dir_is_excluded(dirpath, d, conf.interactive):
                     dirnames.remove(d)
 
             for f in filenames:
                 filename=os.path.join(dirpath, f)
-                check_file(conf, filename)
+                file_to_link_to = check_file(conf, filename)
+                if file_to_link_to:
+                    link_files(conf, file_to_link_to, filename) #do it
 
     if conf.interactive:
         print("   links created: %s" % conf._num_links)
         print("disk space saved: %s" % str(convert_size(conf._disk_saved)))
 
 def check_file(conf, filename):
+    """ checks if there is a file that the current file can
+        be linked to. The filename will be returned"""
     #is the file excluded
     if file_is_excluded( filename
                        , conf._compiled_white_list_res
@@ -169,14 +173,14 @@ def check_file(conf, filename):
                        ):
         if conf.interactive:
             print("file excluded: %s" % filename)
-        return
+        return None
 
     stat_info = os.stat(filename)
     inode_key=(stat_info.st_dev,stat_info.st_ino)
 
     #file is already existent
     if inode_key in file_by_inode:
-        return
+        return None
 
     # file is not linked - is there some other file with the same content
     with open(filename,'rb') as file_handle:
@@ -197,13 +201,20 @@ def check_file(conf, filename):
                               , conf.mode
                               , conf.ctime
                               ):
-                link_files(conf, file_to_link_to, filename) #do it
-            return
+                return file_to_link_to
+            return None
 
     #we do not have a filename for the inode
     #and the contents do not macht a file on the same device
+
+    #print("adding: " + str(filename)
+    #         + " - " + str(inode_key)
+    #         + " - " + str(content_hash)
+    #     )
+
     file_by_inode[inode_key]=filename
     inode_by_hash[content_hash]=inode_key
+    return None
 
 
 def link_files(conf, file_to_link_to, filename):
@@ -253,9 +264,9 @@ def link_files(conf, file_to_link_to, filename):
 
     return #end of link_files
 
-def dir_is_excluded(conf, dirpath, dirname):
+def dir_is_excluded(conf, dirpath, dirname, debug = False):
     if (os.path.basename(dirname).lower() in conf.exclude_dirs):
-        if conf.interactive:
+        if debug:
             print("ignoring directory: %s/%s" % (os.path.abspath(dirpath),dirname))
         return True
     return False
@@ -264,6 +275,7 @@ def file_is_excluded( filename
                     , compiled_white_list_res
                     , compiled_black_list_res
                     ):
+
     if os.path.islink(filename):
             return True
 

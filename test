@@ -1,13 +1,13 @@
 #!/bin/bash
 
-test_dir="test-$1"
+test_dir="test-${1:-small}"
 shift
 
 cd hardlink-test-daten || exit 1
 
 rm -fr 'test'
 echo -n 'copy test files ...'
-cp -r  "$test_dir" 'test'
+cp -r  "$test_dir" 'test' || exit 1
 echo 'done'
 echo
 

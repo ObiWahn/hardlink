@@ -42,31 +42,33 @@ file_by_inode = {}
 inode_by_hash  = {}
 
 class hardConf:
-    '''my great documenmtation about hardConf
-
-    here we go...
+    '''hardlink configuration
     '''
 
-    #: my documentation string about directories
-    directories        = []
+    def __init__(self):
+        self.directories        = []
 
-    white_list_res     = []
-    black_list_res     = []
-    exclude_dirs       = []
-    _exclude_dirs_default = (".git", ".hg", "drafts", "Entw&APw-rfe")
+        self.white_list_res     = []
+        self.black_list_res     = []
+        self.exclude_dirs       = []
+        self._exclude_dirs_default = (".git", ".hg", "drafts", "Entw&APw-rfe")
 
-    interactive        = False
-    dryrun             = False
+        self.interactive        = False
+        self.dryrun             = False
 
-    user               = False
-    group              = False
-    mode               = False
-    ctime              = False
+        self.user               = False
+        self.group              = False
+        self.mode               = False
+        self.ctime              = False
 
-    _read_compare_size = 4 * 1024
-    _read_hash_size    = 2 * 1024
-    _num_links         = 0
-    _disk_saved        = 0
+        self._read_compare_size = 4 * 1024
+        self._read_hash_size    = 2 * 1024
+
+
+class Stats:
+    def __init__(self):
+        self.num_links = 0
+        self.disk_saved = 0
 
 
 def main():
@@ -147,6 +149,7 @@ def hardlink(conf):
     conf._compiled_black_list_res = [ re.compile(reg) for reg in conf.black_list_res ]
 
     # walk directories
+    stats = Stats()
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
             for d in dirnames:
@@ -157,11 +160,11 @@ def hardlink(conf):
                 filename=os.path.join(dirpath, f)
                 file_to_link_to = check_file(conf, filename)
                 if file_to_link_to:
-                    link_files(conf, file_to_link_to, filename) #do it
+                    link_files(conf, file_to_link_to, filename, stats) #do it
 
     if conf.interactive:
-        print("   links created: %s" % conf._num_links)
-        print("disk space saved: %s" % str(convert_size(conf._disk_saved)))
+        print("   links created: %s" % stats.num_links)
+        print("disk space saved: %s" % str(convert_size(stats.disk_saved)))
 
 def check_file(conf, filename):
     """ checks if there is a file that the current file can
@@ -217,14 +220,15 @@ def check_file(conf, filename):
     return None
 
 
-def link_files(conf, file_to_link_to, filename):
+def link_files(conf, file_to_link_to, filename, stats=None):
     if conf.interactive and not conf.dryrun:
         print("linking: %s <- %s" % (file_to_link_to,filename))
 
     if conf.interactive and conf.dryrun:
         print("dryrun: %s <- %s" % (file_to_link_to,filename))
-        conf._num_links += 1
-        conf._disk_saved += os.stat(filename).st_size
+        if stats:
+            stats.num_links += 1
+            stats.disk_saved += os.stat(filename).st_size
 
     #DO NOT MESS WITH THIS
     if conf.dryrun:
@@ -259,8 +263,9 @@ def link_files(conf, file_to_link_to, filename):
         print("failed to unlink %s" % temp_name)
         raise e
 
-    conf._num_links += 1
-    conf._disk_saved += os.stat(filename).st_size
+    if stats:
+        stats.num_links += 1
+        stats.disk_saved += os.stat(filename).st_size
 
     return #end of link_files
 

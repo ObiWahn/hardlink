@@ -60,6 +60,8 @@ class hardConf:
         self.group              = False
         self.mode               = False
         self.ctime              = False
+        self.summary            = False
+        self.stats              = True
 
         self._read_compare_size = 4 * 1024
         self._read_hash_size    = 2 * 1024
@@ -72,12 +74,23 @@ class Stats:
 
 def main():
     conf=hardConf()
-    conf.interactive = True
     parse_arguments(conf)
     if conf.directories:
-        hardlink(conf)
+        stats, summary = hardlink(conf)
+        if summary:
+            for key, val in summary.items():
+                print "---"
+                print(key)
+                for item in val:
+                    print(item)
+        if conf.stats:
+            if conf.dryrun:
+                print("==dryrun results==")
+            print("   links created: %s" % stats.num_links)
+            print("disk space saved: %s" % str(convert_size(stats.disk_saved)))
     else:
         print("No directory given")
+
     return 0
 
 def parse_arguments(conf):
@@ -91,6 +104,7 @@ def parse_arguments(conf):
                         metavar="<dir>"
                        )
     parser.add_argument("-d","--dryrun", help="show what would be done", action="store_true")
+    parser.add_argument("-s","--summary", help="print summary at the end", action="store_true")
 
     parser.add_argument("-u", "--user", help="ensure files have the same user", action="store_true")
     parser.add_argument("-g", "--group", help="ensure files have the same group", action="store_true")
@@ -123,6 +137,8 @@ def parse_arguments(conf):
 
     if args.dryrun:
         conf.dryrun=args.dryrun
+    if args.summary:
+        conf.summary=args.summary
 
     if args.user:
         conf.user=args.user
@@ -143,6 +159,9 @@ def parse_arguments(conf):
 
 
 def hardlink(conf):
+    summary = None
+    if conf.summary:
+        summary = dict()
     #compile settings
     conf.directories = [ os.path.abspath(x) for x in conf.directories ]
     conf.exclude_dirs.extend( [ x.lower() for x in conf._exclude_dirs_default] )
@@ -153,7 +172,6 @@ def hardlink(conf):
     stats = Stats()
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
-            PP(dirnames)
             for d in dirnames:
                 if dir_is_excluded(conf, dirpath, d, conf.interactive):
                     dirnames.remove(d)
@@ -162,13 +180,9 @@ def hardlink(conf):
                 filename=os.path.join(dirpath, f)
                 file_to_link_to = check_file(conf, filename)
                 if file_to_link_to:
-                    link_files(conf, file_to_link_to, filename, stats) #do it
+                    link_files(conf, file_to_link_to, filename, summary, stats) #do it
 
-    if conf.interactive:
-        if conf.dryrun:
-            print("==dryrun results==")
-        print("   links created: %s" % stats.num_links)
-        print("disk space saved: %s" % str(convert_size(stats.disk_saved)))
+    return stats, summary
 
 def check_file(conf, filename):
     """ checks if there is a file that the current file can
@@ -224,12 +238,17 @@ def check_file(conf, filename):
     return None
 
 
-def link_files(conf, file_to_link_to, filename, stats=None):
+def link_files(conf, file_to_link_to, filename, summary, stats=None):
+    if conf.summary:
+        summary.setdefault(file_to_link_to, []).append(filename)
+
     if conf.interactive and not conf.dryrun:
         print("linking: %s <- %s" % (file_to_link_to,filename))
 
     if conf.interactive and conf.dryrun:
         print("dryrun: %s <- %s" % (file_to_link_to,filename))
+
+    if conf.stats and conf.dryrun:
         if stats:
             stats.num_links += 1
             stats.disk_saved += os.stat(filename).st_size

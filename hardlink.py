@@ -37,6 +37,7 @@ import re           #file_is_excluded
 import math         #convert_size
 
 import pprint
+from pprint import pprint as PP
 
 file_by_inode = {}
 inode_by_hash  = {}
@@ -46,27 +47,27 @@ class hardConf:
 
     here we go...
     '''
-
+    def __init__(self):
     #: my documentation string about directories
-    directories        = []
+        self.directories        = []
 
-    white_list_res     = []
-    black_list_res     = []
-    exclude_dirs       = []
-    _exclude_dirs_default = (".git", ".hg", "drafts", "Entw&APw-rfe")
+        self.white_list_res     = []
+        self.black_list_res     = []
+        self.exclude_dirs       = []
+        self._exclude_dirs_default = (".git", ".hg", "drafts", "Entw&APw-rfe")
 
-    interactive        = False
-    dryrun             = False
+        self.interactive        = False
+        self.dryrun             = False
 
-    user               = False
-    group              = False
-    mode               = False
-    ctime              = False
+        self.user               = False
+        self.group              = False
+        self.mode               = False
+        self.ctime              = False
 
-    _read_compare_size = 4 * 1024
-    _read_hash_size    = 2 * 1024
-    _num_links         = 0
-    _disk_saved        = 0
+        self._read_compare_size = 4 * 1024
+        self._read_hash_size    = 2 * 1024
+        self._num_links         = 0
+        self._disk_saved        = 0
 
 
 def main():
@@ -119,6 +120,7 @@ def parse_arguments(conf):
     if args.directory:
         conf.directories.extend(args.directory)
 
+
     if args.dryrun:
         conf.dryrun=args.dryrun
 
@@ -142,6 +144,7 @@ def parse_arguments(conf):
 
 def hardlink(conf):
     #compile settings
+    conf.directories = [ os.path.abspath(x) for x in conf.directories ]
     conf.exclude_dirs.extend( [ x.lower() for x in conf._exclude_dirs_default] )
     conf._compiled_white_list_res = [ re.compile(reg) for reg in conf.white_list_res ]
     conf._compiled_black_list_res = [ re.compile(reg) for reg in conf.black_list_res ]
@@ -149,8 +152,9 @@ def hardlink(conf):
     # walk directories
     for root in conf.directories:
         for dirpath, dirnames, filenames in os.walk(root):
+            PP(dirnames)
             for d in dirnames:
-                if dir_is_excluded(dirpath, d, conf.interactive):
+                if dir_is_excluded(conf, dirpath, d, conf.interactive):
                     dirnames.remove(d)
 
             for f in filenames:
@@ -160,6 +164,8 @@ def hardlink(conf):
                     link_files(conf, file_to_link_to, filename) #do it
 
     if conf.interactive:
+        if conf.dryrun:
+            print("==dryrun results==")
         print("   links created: %s" % conf._num_links)
         print("disk space saved: %s" % str(convert_size(conf._disk_saved)))
 

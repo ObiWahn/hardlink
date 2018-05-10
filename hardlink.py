@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 
 # Copyright 2013 Jan Christoph Uhde <Jan@UhdeJC.com>
@@ -79,8 +79,7 @@ def main():
     if conf.directories:
         stats, summary = hardlink(conf)
         if summary:
-            print()
-            print("Summary of found duplicates")
+            print("\n== summary of found duplicates ==")
             print("#---")
             for key, val in summary.items():
                 print("#---")
@@ -88,8 +87,7 @@ def main():
                 for item in val:
                     print(item)
             print("#---")
-            print("#---")
-            print()
+            print("#---\n")
         if conf.stats:
             if conf.dryrun:
                 print("== dryrun results ==")

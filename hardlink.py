@@ -112,6 +112,7 @@ def parse_arguments(conf):
                        )
     parser.add_argument("-d","--dryrun", help="show what would be done", action="store_true")
     parser.add_argument("-s","--summary", help="print summary at the end", action="store_true")
+    parser.add_argument("-v","--verbose", help="be more verbose", action="store_true")
 
     parser.add_argument("-u", "--user", help="ensure files have the same user", action="store_true")
     parser.add_argument("-g", "--group", help="ensure files have the same group", action="store_true")
@@ -146,6 +147,8 @@ def parse_arguments(conf):
         conf.dryrun=args.dryrun
     if args.summary:
         conf.summary=args.summary
+    if args.verbose:
+        conf.interactive=args.verbose
 
     if args.user:
         conf.user=args.user

@@ -78,14 +78,22 @@ def main():
     if conf.directories:
         stats, summary = hardlink(conf)
         if summary:
+            print()
+            print("Summary of found duplicates")
+            print("#---")
             for key, val in summary.items():
-                print "---"
+                print("#---")
                 print(key)
                 for item in val:
                     print(item)
+            print("#---")
+            print("#---")
+            print()
         if conf.stats:
             if conf.dryrun:
-                print("==dryrun results==")
+                print("== dryrun results ==")
+            else:
+                print("== hardlink results ==")
             print("   links created: %s" % stats.num_links)
             print("disk space saved: %s" % str(convert_size(stats.disk_saved)))
     else:

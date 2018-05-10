@@ -71,6 +71,7 @@ class Stats:
     def __init__(self):
         self.num_links = 0
         self.disk_saved = 0
+        self.late_different= 0
 
 def main():
     conf=hardConf()
@@ -94,10 +95,10 @@ def main():
                 print("== dryrun results ==")
             else:
                 print("== hardlink results ==")
-            print("   links created: %s" % stats.num_links)
             print("disk space saved: %s" % str(convert_size(stats.disk_saved)))
-    else:
-        print("No directory given")
+            print("links created:    %s" % stats.num_links)
+            print("late different:   %s" % stats.late_different)
+    else: print("No directory given")
 
     return 0
 
@@ -186,13 +187,13 @@ def hardlink(conf):
 
             for f in filenames:
                 filename=os.path.join(dirpath, f)
-                file_to_link_to = check_file(conf, filename)
+                file_to_link_to = check_file(conf, stats, filename)
                 if file_to_link_to:
-                    link_files(conf, file_to_link_to, filename, summary, stats) #do it
+                    link_files(conf, stats, file_to_link_to, filename, summary) #do it
 
     return stats, summary
 
-def check_file(conf, filename):
+def check_file(conf, stats, filename):
     """ checks if there is a file that the current file can
         be linked to. The filename will be returned"""
     #is the file excluded
@@ -222,13 +223,10 @@ def check_file(conf, filename):
         if inode_key[0] == other_inode_key[0]:
             # the other file is one the same drive
             file_to_link_to=file_by_inode[other_inode_key]
-            if allowed_to_link( file_to_link_to
+            if allowed_to_link( conf
+                              , stats
+                              , file_to_link_to
                               , filename
-                              , conf._read_compare_size
-                              , conf.user
-                              , conf.group
-                              , conf.mode
-                              , conf.ctime
                               ):
                 return file_to_link_to
             return None
@@ -246,7 +244,7 @@ def check_file(conf, filename):
     return None
 
 
-def link_files(conf, file_to_link_to, filename, summary, stats=None):
+def link_files(conf, stats, file_to_link_to, filename, summary):
     if conf.summary:
         summary.setdefault(file_to_link_to, []).append(filename)
 
@@ -257,9 +255,8 @@ def link_files(conf, file_to_link_to, filename, summary, stats=None):
         print("dryrun: %s <- %s" % (file_to_link_to,filename))
 
     if conf.stats and conf.dryrun:
-        if stats:
-            stats.num_links += 1
-            stats.disk_saved += os.stat(filename).st_size
+        stats.num_links += 1
+        stats.disk_saved += os.stat(filename).st_size
 
     #DO NOT MESS WITH THIS
     if conf.dryrun:
@@ -332,13 +329,10 @@ def file_is_excluded( filename
     return False
 
 
-def allowed_to_link( file_to_link_to
+def allowed_to_link( conf
+                   , stats
+                   , file_to_link_to
                    , filename
-                   , read_compare_size = 4 * 1024
-                   , check_user = False
-                   , check_group = False
-                   , check_mode = False
-                   , check_ctime = False
                    ):
 
     file1=file_to_link_to
@@ -351,19 +345,19 @@ def allowed_to_link( file_to_link_to
     if stat_1.st_size != stat_2.st_size:
         return False
 
-    if check_user:
+    if conf.user:
         if stat_1.st_uid != stat_2.st_uid:
             return False
 
-    if check_group:
+    if conf.group:
         if stat_1.st_gid != stat_2.st_gid:
             return False
 
-    if check_mode:
+    if conf.mode:
         if stat_1.st_mode != stat_2.st_mode:
             return False
 
-    if check_ctime:
+    if conf.ctime:
         if stat_1.st_ctime != stat_2.st_ctime:
             return False
 
@@ -373,9 +367,10 @@ def allowed_to_link( file_to_link_to
     with open(file_to_link_to, 'rb') as f1:
         with open(filename, 'rb') as f2:
             while True:
-                b1 = f1.read(read_compare_size)
-                b2 = f2.read(read_compare_size)
+                b1 = f1.read(conf._read_compare_size)
+                b2 = f2.read(conf._read_compare_size)
                 if b1 != b2:
+                    stats.late_different += 1
                     return False
                 if not b1:
                     break

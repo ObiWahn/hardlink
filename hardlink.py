@@ -198,12 +198,9 @@ def check_file(conf, stats, filename):
     """ checks if there is a file that the current file can
         be linked to. The filename will be returned"""
     #is the file excluded
-    if file_is_excluded( filename
-                       , conf._compiled_white_list_res
-                       , conf._compiled_black_list_res
+    if file_is_excluded( conf
+                       , filename
                        ):
-        if conf.interactive:
-            print("file excluded: %s" % filename)
         return None
 
     stat_info = os.stat(filename)
@@ -305,26 +302,31 @@ def dir_is_excluded(conf, dirpath, dirname, debug = False):
         return True
     return False
 
-def file_is_excluded( filename
-                    , compiled_white_list_res
-                    , compiled_black_list_res
+def file_is_excluded( conf
+                    , filename
                     ):
 
     if os.path.islink(filename):
+            if conf.interactive:
+                print("symlink excluded: %s" % filename)
             return True
 
-    if compiled_black_list_res:
-        for reg in compiled_black_list_res:
+    if conf._compiled_black_list_res:
+        for reg in conf._compiled_black_list_res:
             if reg.search(filename):
+                if conf.interactive:
+                    print("file blacklisted: %s" % filename)
                 return True
 
-    if compiled_white_list_res:
+    if conf._compiled_white_list_res:
         white_re_match=False
-        for reg in compiled_white_list_res:
+        for reg in conf._compiled_white_list_res:
             if reg.search(filename):
                 white_re_match=True
                 break
         if not white_re_match:
+            if conf.interactive:
+                print("file not whitelisted: %s" % filename)
             return True
 
     return False

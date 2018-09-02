@@ -11,9 +11,11 @@ cp -r  "$test_dir" 'test' || exit 1
 echo 'done'
 echo
 
-../hardlink.py 'test' "$@"
+echo "### running hardlink #####################"
+../hardlink.py -s -v 'test' "$@"
+echo "### running hardlink - done ##############"
 
 echo "here comes the diff"
-diff -r 'test' "$test_dir"
+diff -r --no-dereference 'test' "$test_dir"
 echo "end of diff diff"
 
